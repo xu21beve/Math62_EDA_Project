@@ -33,6 +33,11 @@ data(spam)
 ```
 
 
+```{r installation}
+install.packages("estimatr")
+library(estimatr)
+```
+
 ## Background.
 The U.S. Centers for Disease Control and Prevention conducts an annual telephone survey to gather information about U.S. residents' health related conditions and risk behaviors.  The survey is conducted annually, though we will focus our project on the 2022 survey data.  The raw survey data includes over 300 variables and several hundred thousand rows.  
 
@@ -56,6 +61,117 @@ Peer Evaluations                | -     | 12/10 | 5%
 ```{r}
 brfss <- read.csv("brfss2022_m62.csv", stringsAsFactors=TRUE)
 ```
+
+---
+title: "CDC BRFSS Analysis - Team Tech Report"
+author: "Math 62 - Fall 2026"
+format:
+  pdf:
+    knitr:
+      opts_chunk: 
+        out-width: "60%"
+        fig-align: "center"
+        size: "scriptsize"
+    fontsize: 10pt
+    toc: false
+    toc-params: "allowframebreaks"
+    include-in-header:
+      - text: |
+          \usepackage{etoolbox}
+          \usepackage{hyperref}
+          
+execute:
+  echo: true
+  warning: false
+  message: false
+  eval: true
+
+fig-align: center
+fig-height: 6
+fig-width: 8
+---
+
+
+2. Do US residents who faced cost barriers when trying to receive medical treatment demonstrate a stronger correlation between number of bad mental health days and number of bad physical health days, compared to residents who didn’t face cost barriers? 
+
+To evaluate this claim, let's develop a linear regression model with number of bad mental health days as the outcome, and number of bad physical health days, cost barrier status, and the interaction factor of those two as our factors. 
+
+```{r question 2}
+brfss$medcost_bin <- ifelse(brfss$medcost == "Yes", 1,
+                     ifelse(brfss$medcost == "No", 0, NA))
+
+# Number of respondent in each group
+sum(brfss$medcost == "Yes", na.rm=TRUE) # Respondents who have experienced cost barriers
+sum(brfss$medcost == "No", na.rm=TRUE) # Respondents who have not
+
+# Actual coefficient calculations (to get standard errors robust to errors w/ different variances)
+lm_robust(daysmenthlthnotgood ~ medcost_bin * daysphyshlthnotgood, data=brfss)
+
+# Using lm to do residuals plots
+lm <- lm(daysmenthlthnotgood ~ medcost_bin * daysphyshlthnotgood, data=brfss)
+plot(lm, which=1)
+
+# Number of non-NA values
+sum(!(is.na(brfss$medcost) | is.na(brfss$daysphyshlthnotgood) | is.na(brfss$daysphyshlthnotgood)))
+
+# Percent increase in slope for respondents who faced cost barriers
+pct_inc_cost <- 0.041/0.277 * 100
+pct_inc_cost
+```
+
+Our linear model of $y$ number of bad mental health days (capped from 0-20 days), considering factors of $x_1$, whether respondents did not see a doctor when they needed to because of cost barriers (in the preceding 12 months), $x_2$ number of bad physical health days (capped from 0-30 days), and $x_3$, the interaction factor between the two previous factors, is as follows: 
+
+$y=2.70 + 4.90x_1 + 0.277x_2 + 0.041x_3$
+
+Prior to interpretting our factors, we should check our assumptions:
+
+i. Let's start with our residuals plot, to verify that our errors are independent of our predictors and that our linear regression model holds. Our residuals plot has an interesting feature our residuals are clearly bounded by min/max lines with slopes of -1. Recall that our outcome of number of bad mental health days is capped from 0-30 days. As such, because residual $= y_i - \hat{y}$, we know that the lower limit for residuals has a -1 slope ($e_i = 0 - \hat{y}$), while the upper limit also has a -1 slope ($e_i = 30 - \hat{y}$). Accounting for this feature, our errors appear randomly distributed within the bounded ranges, and don't exhibit any particular shape/pattern, which would suggest that a linear model does represent this data well. 
+
+ii. Since we have 344189 valid samples (no NA's for neither the outcome nor the predictors columns), we have a sufficiently large sample to appeal to CLT and state that our sample mean of errors is approximately normal. 
+
+iii. Since we are assuming that the BRFSS data was collected randomly and processed to control for known confounders, and because our sample size of 344189 is less than 10% of the full population of US residents, we can say that we have independence within and across sample groups (sorted by medical cost barrier status). 
+
+iv. Since our sample size in both the group which has and has not faced cost barriers to receiving medical treatment is significantly larger than 30 (28282 and 323862 US residents), we can appeal to the central limit theorem to assert that our sample means are approximately normally distributed. 
+
+Now, we can interpret our linear model. Because all our factors have p-values of <0.05, we have significant evidence to support the claim that the true coefficients in a linear model with the same outcome/predictors for all US residents, $\beta_1, \beta_2, \beta_3$, are equal to our estimated coefficients. Moreover, the 95% CI for $b_3$ (the coefficient for our interaction factor) doesn't include 0. Thus, we can state the following: 
+
+a. For a US resident who has not missed prescribed medical treatment due to cost barriers, a one-day increase in number of bad physical health days in 2022 predicts a 0.277-day increase in number of bad mental health days.
+
+b. The 95% CI for $b_3$ (the coefficient for our interaction factor) is $[0.027, 0.056]$, which doesn't include 0. Thus, we have significant evidence to support the claim that a one-day increase in number of bad physical health days for US residents who have faced cost barriers to receiving prescribed treatment in 2022 predicts a different (0.041 days greater) increase in number of bad mental health days, compared to residents who have not faced cost barriers (see part a). This is a 14% greater predicted increase per day of bad physical health, compared to residents who have not faced cost barriers.
+
+Therefore, US residents who have faced cost barriers to receiving prescribed treatment in 2022 have a different and 14% greater regression coefficient (greater predicted increase in outcome for the same increase in predictor) for number of bad physical health days in a linear regression model predicting number of bad mental health days. 
+
+3. Do US residents who sleep an average of less than 6 hours every 24 hours report a higher average numbers of days where their mental health was bad, compared to US residents who sleep an average of at least 6 hours every 24 hours?
+
+To evaluate this claim, let's conduct a two-sample t-test, where $\mu_1$ is the average number of days of bad mental health for US residents sleeping an average of less than 6 hours every 24 hours, and $\mu_2$ the average number of days of bad mental health for US residents sleeping an average of at least 6 hours every 24 hours, and our null and alternative hypotheses are as follows: 
+
+$H_0: \mu_1 - \mu_2 > 0$
+
+$H_a: \mu_1 - \mu_2 \leq 0$
+
+```{r question 3}
+# First, let's find the sample std and size for each of our two sample groups
+col1 <- brfss$sleeptime[brfss$sleeptime < 6]
+col2 <- brfss$sleeptime[brfss$sleeptime >= 6]
+
+n1 <- length(col1)
+n2 <- length(col2)
+n1 
+n2
+n1 + n2
+
+t.test(col1, col2, alternative="less")
+```
+
+Before we interpret our results, let's check our assumptions: 
+
+i. Independence within and across each sample: Since we are assuming that the BRFSS data was collected randomly and processed to control for known confounders, and because our sample size of 357298 is less than 10% of the full population of US residents, we can say that we have independence within and across our two sample groups. 
+
+ii. Since our sample size in each group is significantly larger than 30 (41845 and 315453 US residents), we can appeal to the central limit theorem to assert that our sample means are approximately normally distributed. 
+
+iii. Since we used Welch's two-sample t-test, we don't need our two sample groups to have equal variances.
+
+Now, we can evaluate our hypotheses: Our Welch Two Sample t-test yielded a p-value of less than 2.2e-16, which is much less than a typical significance value of 0.05. As such, we can reject the null hypothesis, and we have significant evidence to support our alternative hypothesis that US residents who sleep an average of less than 6 hours every 24 hours reported a higher average numbers of days in 2022 where their mental health was bad, compared to US residents who sleep an average of at least 6 hours every 24 hours. 
 
 5. Is there a difference in average days where mental health is not good for respondents across each of the BMI categories for adults. 
 
@@ -116,7 +232,7 @@ We start by using `lm_robust` to fit a linear model to predict the number of chi
 
 ```{r}
 library(estimatr)
-model <- lm_robust(daysmenthlthnotgood ~ children, data = brfss1)
+model <- lm_robust(daysmenthlthnotgood ~ children, data = brfss)
 summary(model)
 ```
 
