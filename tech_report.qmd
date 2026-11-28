@@ -1,0 +1,142 @@
+---
+title: "CDC BRFSS Analysis - Team Tech Report"
+author: "Math 62 - Fall 2026"
+format:
+  pdf:
+    knitr:
+      opts_chunk: 
+        out-width: "60%"
+        fig-align: "center"
+        size: "scriptsize"
+    fontsize: 10pt
+    toc: false
+    toc-params: "allowframebreaks"
+    include-in-header:
+      - text: |
+          \usepackage{etoolbox}
+          \usepackage{hyperref}
+          
+execute:
+  echo: true
+  warning: false
+  message: false
+  eval: true
+
+fig-align: center
+fig-height: 6
+fig-width: 8
+---
+
+```{r setup, include=FALSE}
+library(kernlab)
+data(spam)
+```
+
+
+## Background.
+The U.S. Centers for Disease Control and Prevention conducts an annual telephone survey to gather information about U.S. residents' health related conditions and risk behaviors.  The survey is conducted annually, though we will focus our project on the 2022 survey data.  The raw survey data includes over 300 variables and several hundred thousand rows.  
+
+We are providing you a version of the data that has been simplified to 39 of the most interesting fields, which includes only completed interviews (though many responses are left blank), and which uses a simplified coding of responses from the original data. If you are interested, you can find the
+full data set at:
+\url{https://www.cdc.gov/brfss/annual_data/annual_2022.html.}
+However, for this project, please \textit{only use the version of the BRFSS data that has been
+provided for the course} (it can be found on Canvas).
+
+
+Component                                 | In Class Dates   | Due Date                    | Grade Percentage
+--------------------------|---------------------------|-----------------------------|--------------------------------
+Individual Data Exploration     |    | 10/5  | 15%
+Team Required Questions Part A  | | 10/29  | 15%
+Team Required Questions Part B  | | 11/12 | 15%
+Team-Chosen Questions Proposal  | - | 11/17  | 5%
+Team-Chosen Questions Report    | 11/18 -- 11/24 | 12/3 | 15%
+Final Presentations             | 12/2 -- 12/10 | | 30% |
+Peer Evaluations                | -     | 12/10 | 5%
+
+```{r}
+brfss <- read.csv("brfss2022_m62.csv", stringsAsFactors=TRUE)
+```
+
+5. Is there a difference in average days where mental health is not good for respondents across each of the BMI categories for adults. 
+
+To compare the different across each of the BMI categories, we categorize them according to this metric from the CDC:
+
+- 1. Underweight: Less than 18.5
+- 2. Healthy Weight: 18.5 to less than 25
+- 3. Overweight: 25 to less than 30
+- 4. Obesity: 30 or greater
+
+Source: https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html
+
+We can categorize the numeric BMI data. 
+
+```{r}
+brfss$bmi_category <- NA
+brfss$bmi_category[which(brfss$bmi < 18.5)] <- "Underweight"
+brfss$bmi_category[which(brfss$bmi >= 18.5 & brfss$bmi < 25)] <- "Healthy"
+brfss$bmi_category[which(brfss$bmi >= 25 & brfss$bmi < 30)] <- "Overweight"
+brfss$bmi_category[which(brfss$bmi >= 30)] <- "Obese"
+```
+
+We can perform an Anova F-test to see if there is a difference in the average days where respondent's mental health is not good across each of these four BMI categories. 
+
+We first state the null and alterantive hypothesis:
+
+- $H_0: \mu_1 = \mu_2 = \mu_3 = \mu_4$
+- $H_a:$ At least one $\mu_i$ is different
+
+Next, we need to validate the assumptions of the test. There must be independence within and across each BMI category, there is normality of sample means within each category, and there is equal variance across all the categories. However, we do not need to hold the equal variance assumption if we use the `oneway.test`, so this is what we will also do.
+
+Assuming that each respondent answered once, and number of days one person's mental health wasn't good didn't affect another respondent's number of mental health days not good, independence can be assumed. Next, we need to determine whether the sampling distribution of the sample mean within each group is approximately normal. We can find this by finding the total number of observations across each BMI category. 
+
+```{r}
+table(brfss$bmi_category)
+```
+
+The minimum number of obervations for a BMI category is greater than the standard baseline value to apply the CLT. We can assume normal distribution of the sample means within each category under the CLT. 
+
+```{r}
+oneway.test(daysmenthlthnotgood ~ bmi_category, data=brfss)
+```
+
+The p-value is 2.2e-16, which is approximately 0 and less than the significance level of 0.05. We reject the null hypothesis. There is sufficient statistical evidence that at least one mean of average days where respondent's mental health is not good in a BMI category is different. 
+
+Therefore, we conclude that yes, there is a difference in average days where mental health is not good for respondents across each of the BMI categories for adults. 
+
+6. How does the number of children respondents relate to the number of days of mental health not good in the last month?
+
+We can use a simple linear regression model to determine how the number of children respondents have relate to the number of days where their mental health was not good in the last month. Under the linear regression t-test where $Y_i = \beta_0 + \beta_1X_i + \epsilon_i$, the response variable $Y_i$ is the number of days a respondent's mental health was not good in the past month while the predictor variable $X_i$ is the number children that corresponding respondent has. With linear regression, we assume the observations are independent and the expected value of the errors is zero for each value of $X_i$. Since we use `lm_robust`, we do not need to account for homoscedasticity. 
+
+The null hypothesis is that there is no linear relationship between the response and predictor variable. The alternative hypothesis is that there is a linear relationship between the two variables.
+
+- $H_0: \beta_0 = 0$
+- $H_a: \beta_a neq 0$
+
+We start by using `lm_robust` to fit a linear model to predict the number of children a respondent has from the number of days their mental health was not good in the past month. 
+
+```{r}
+library(estimatr)
+model <- lm_robust(daysmenthlthnotgood ~ children, data = brfss1)
+summary(model)
+```
+
+We generate a residual plot for our linear model.
+
+```{r}
+plot(fitted(model), residuals(model),
+     main = "Residual Plot",
+     xlab = "Fitted Values",
+     ylab = "Residuals")
+
+abline(h=0, col = "red")
+```
+
+The residual plot shows a greater distribution of residuals above the zero line. This may suggest nonconstant variance, but since we are used `lm_robust`, we do not need to account for equal variance. 
+
+Instead, we can use the information in the table and create our linear regression model to determine the relationship between the number of children a respondent has and the corresponding number of days where their mental health was not good in the past month. 
+
+The linear regression model is: $Y_i = 4.186 + 0.345X_i$ 
+
+The intercept can be interpreted as a respondent with 0 children is predicted to have around 4.186 days of poor mental health in the past month. The slope can be interpreted as a respondent with an increase in 1 children is predicted to have around a 0.345 day increase in the number of poor mental health days in the past month.
+
+The p-value of the linear regression model is 8.211e-90, which is approximately zero and less than the signifcance level $\alpha = 0.05$. There is enough statistical evidence of a linear relationship between the number of children and the number of days a respondents mental health was not good. 
