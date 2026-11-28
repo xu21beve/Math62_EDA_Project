@@ -91,6 +91,25 @@ fig-height: 6
 fig-width: 8
 ---
 
+1. Do respondents who have been diagnosed with depression report different mean days with bad mental health compared to respondents who have not been diagnosed?
+
+We can answer this question using a two-sample t-test, as this will allow us to compare the means of the two independent groups. First, we need to state our hypotheses. We can define $\mu_1$ as the population mean number of poor mental health days for respondents diagnosed with depression, and $\mu_2$ for those who have not been diagnosed. To test if there is a difference between these means, our hypotheses will be:
+
+$$H_0 : \mu_1 - \mu_2 = 0$$
+$$H_a : \mu_1 - \mu_2 \neq 0$$
+
+Next, we need to state and verify the assumptions needed to conduct this type of test. We must assume independence of the data within and between groups. This is satisfied because the respondents were sampled randomly, the number of respondents in each group is less than 10% of the US population who are diagnosed and not diagnosed with depression, and there is no pairing between the groups as respondents can only fit into one of the categories. We also need to assume normality of both sample groups. This is satisfied because the number of respondents in both groups is greater than 30, so we can apply the Central Limit Theorem.
+
+Now, we can separate the data about the number of days mental health was not good into groups based on whether or not the person has depression, and then run a t-test on these groups.
+
+```{r}
+days_diagnosed <- brfss$daysmenthlthnotgood[brfss$depress == "Yes"]
+days_not_diagnosed <- brfss$daysmenthlthnotgood[brfss$depress == "No"]
+
+t.test(days_diagnosed, days_not_diagnosed)
+```
+
+Here, we will assume a 95% confidence level. As we can see, the p-value from this test is less than $2.2 \times 10^{-16}$. Therefore, because the p-value is less than the significance level of 0.05, we can reject our null hypothesis and conclude that there is a difference in the mean number of bad mental health days between the two groups.
 
 2. Do US residents who faced cost barriers when trying to receive medical treatment demonstrate a stronger correlation between number of bad mental health days and number of bad physical health days, compared to residents who didn’t face cost barriers? 
 
@@ -172,6 +191,23 @@ ii. Since our sample size in each group is significantly larger than 30 (41845 a
 iii. Since we used Welch's two-sample t-test, we don't need our two sample groups to have equal variances.
 
 Now, we can evaluate our hypotheses: Our Welch Two Sample t-test yielded a p-value of less than 2.2e-16, which is much less than a typical significance value of 0.05. As such, we can reject the null hypothesis, and we have significant evidence to support our alternative hypothesis that US residents who sleep an average of less than 6 hours every 24 hours reported a higher average numbers of days in 2022 where their mental health was bad, compared to US residents who sleep an average of at least 6 hours every 24 hours. 
+
+4. Is there a significant difference in days where respondents’ mental health was bad across different income brackets?
+
+We can answer this question using the ANOVA F-test, as this allows us to compare differences across many groups at once. To start, we can state our hypotheses. Let $\mu_i$ be the mean number of bad mental health days in the last month for people in income group $i$, where there are $k$ different income groups from the dataset. Then, we wish to test the following hypotheses:
+
+$$H_0: \mu_1 = \mu_2 = \ldots = \mu_k$$
+$$H_a: \text{at least one } \mu_i \text{ is different from the others}$$
+
+Next, we need to state and verify the assumptions needed to conduct this type of test. We need to assume that the data is independent within and between income groups. This is satisfied because we can assume that the data was sampled randomly and the number of people in this dataset is less than 10% of the US population. The data is also not paired because each observation is taken from different people. We also need to assume that the number of days is normally distributed within each income group. This is satisfied because the number of respondents in each group is greater than 30, so we can apply the Central Limit Theorem.
+
+Now, we test this using the one-way ANOVA test with Welch's adjustment, so we don't need to assume that the variances of the days within each income group are the same.
+
+```{r}
+oneway.test(formula = daysmenthlthnotgood ~ income, data=brfss)
+```
+
+Here, we will assume a 95% confidence level. As we can see, the p-value from this test is less than $2.2 \times 10^{-16}$. Therefore, because the p-value is less than the significance level of 0.05, we can reject our null hypothesis and conclude that the mean number of bad mental health days is different in at least one of the income groups.
 
 5. Is there a difference in average days where mental health is not good for respondents across each of the BMI categories for adults. 
 
